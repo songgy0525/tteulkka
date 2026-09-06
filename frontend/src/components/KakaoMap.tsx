@@ -37,6 +37,7 @@ export default function KakaoMap() {
   const markersRef = useRef<any[]>([]);
   const circleRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [radius, setRadius] = useState(1000);
@@ -122,10 +123,11 @@ export default function KakaoMap() {
   const searchStores = useCallback(async () => {
     if (!center || !mapReady) return;
 
-    // 진행 중인 요청 취소
+    // 진행 중인 요청 취소 + 최신 요청 ID 발급
     abortControllerRef.current?.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    const requestId = ++requestIdRef.current;
 
     setLoading(true);
     setSelectedStore(null);
@@ -141,13 +143,16 @@ export default function KakaoMap() {
         signal: controller.signal,
       });
       const data: Store[] = await res.json();
+
+      // 최신 요청의 응답만 반영
+      if (requestId !== requestIdRef.current) return;
       setStores(data);
       drawMarkers(data);
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return;
       alert('백엔드 서버에 연결할 수 없습니다.');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [center, radius, category, mapReady, drawMarkers]);
 
