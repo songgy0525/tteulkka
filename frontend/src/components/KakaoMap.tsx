@@ -36,6 +36,7 @@ export default function KakaoMap() {
   const mapInstance = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const circleRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [radius, setRadius] = useState(1000);
@@ -119,26 +120,36 @@ export default function KakaoMap() {
   }, []);
 
   const searchStores = useCallback(async () => {
-    if (!center) return;
+    if (!center || !mapReady) return;
+
+    // 진행 중인 요청 취소
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setSelectedStore(null);
     try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
       const params = new URLSearchParams({
         lat: String(center.lat),
         lng: String(center.lng),
         radius: String(radius),
         ...(category && { category }),
       });
-      const res = await fetch(`http://localhost:8080/api/stores?${params}`);
+      const res = await fetch(`${apiBase}/api/stores?${params}`, {
+        signal: controller.signal,
+      });
       const data: Store[] = await res.json();
       setStores(data);
       drawMarkers(data);
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return;
       alert('백엔드 서버에 연결할 수 없습니다.');
     } finally {
       setLoading(false);
     }
-  }, [center, radius, category, drawMarkers]);
+  }, [center, radius, category, mapReady, drawMarkers]);
 
   const getCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) return;
@@ -216,7 +227,7 @@ export default function KakaoMap() {
           {/* 검색 버튼 */}
           <button
             onClick={searchStores}
-            disabled={!center || loading}
+            disabled={!center || !mapReady || loading}
             className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? '검색 중...' : '상권 검색'}
