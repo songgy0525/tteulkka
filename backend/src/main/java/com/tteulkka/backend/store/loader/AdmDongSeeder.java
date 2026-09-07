@@ -27,11 +27,14 @@ public class AdmDongSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        // 앱 재시작 시 이전 크래시로 LOADING 상태에 멈춘 행정동 복구 (항상 실행)
+        // 앱 재시작 시 복구 (항상 실행)
+        // 1) 이전 크래시로 LOADING 상태에 멈춘 행정동 → PENDING
         int reset = admDongRepository.resetLoadingToPending();
         if (reset > 0) {
             log.info("이전 실행에서 중단된 LOADING 행정동 {}개를 PENDING으로 복구", reset);
         }
+        // 2) 이전 크래시로 DB 락이 해제되지 않았으면 강제 해제
+        jdbcTemplate.update("UPDATE batch_lock SET running = false, started_at = null WHERE job_name = 'nationwide' AND running = true");
 
         if (admDongRepository.count() > 0) {
             return; // 이미 시딩됨

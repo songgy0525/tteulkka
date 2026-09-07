@@ -2,6 +2,7 @@ package com.tteulkka.backend.store.loader;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -12,18 +13,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 public class NationwideLoaderService {
 
+    private static final String JOB_NAME = "nationwide";
+
     private final AdmDongRepository admDongRepository;
     private final StoreDataLoaderService storeDataLoaderService;
+    private final JdbcTemplate jdbcTemplate;
     private final Executor executor;
 
+    /** JVM-local 빠른 가드 (같은 인스턴스 중복 제출 방지) */
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public NationwideLoaderService(
             AdmDongRepository admDongRepository,
             StoreDataLoaderService storeDataLoaderService,
+            JdbcTemplate jdbcTemplate,
             @Qualifier("nationwideLoader") Executor executor) {
         this.admDongRepository = admDongRepository;
         this.storeDataLoaderService = storeDataLoaderService;
+        this.jdbcTemplate = jdbcTemplate;
         this.executor = executor;
     }
 
@@ -32,13 +39,19 @@ public class NationwideLoaderService {
     }
 
     /**
-     * compareAndSet을 동기적으로 먼저 수행한 뒤 executor에 제출.
-     * 두 요청이 동시에 들어와도 하나만 true를 받는다.
+     * JVM 락 → DB 전역 락 순서로 선점.
+     * 두 인스턴스가 동시에 호출해도 DB UPDATE 원자성으로 하나만 성공한다.
      *
-     * @return true = 시작됨, false = 이미 실행 중
+     * @return true = 시작됨, false = 이 JVM 또는 다른 인스턴스가 이미 실행 중
      */
     public boolean tryStart() {
+        // 1단계: JVM-local 빠른 가드
         if (!running.compareAndSet(false, true)) {
+            return false;
+        }
+        // 2단계: DB 전역 락 (running=false인 경우만 UPDATE 성공)
+        if (!acquireDbLock()) {
+            running.set(false); // 다른 인스턴스가 락 보유 중
             return false;
         }
         executor.execute(this::doLoadAll);
@@ -57,9 +70,9 @@ public class NationwideLoaderService {
 
                 AdmDong admDong = next.get();
 
-                // 원자적 선점: 다른 인스턴스가 먼저 가져갔으면 PENDING → LOADING 업데이트 실패(0)
+                // 원자적 선점: 다른 인스턴스가 먼저 가져갔으면 0 반환
                 if (admDongRepository.claimAsPending(admDong.getCode()) == 0) {
-                    continue; // 다음 PENDING 탐색
+                    continue;
                 }
 
                 try {
@@ -80,7 +93,24 @@ public class NationwideLoaderService {
             Thread.currentThread().interrupt();
             log.warn("전국 적재 중단됨");
         } finally {
+            releaseDbLock();
             running.set(false);
         }
+    }
+
+    /** running=false일 때만 UPDATE 성공 → 원자적 전역 선점 */
+    private boolean acquireDbLock() {
+        int updated = jdbcTemplate.update(
+                "UPDATE batch_lock SET running = true, started_at = now() WHERE job_name = ? AND running = false",
+                JOB_NAME
+        );
+        return updated == 1;
+    }
+
+    private void releaseDbLock() {
+        jdbcTemplate.update(
+                "UPDATE batch_lock SET running = false, started_at = null WHERE job_name = ?",
+                JOB_NAME
+        );
     }
 }
