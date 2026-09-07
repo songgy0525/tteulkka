@@ -20,6 +20,9 @@ public class Store {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true)
+    private String bizesId;
+
     @Column(nullable = false)
     private String name;
 
@@ -45,4 +48,20 @@ public class Store {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    public static Store create(String bizesId, String name, String categoryCode, String categoryName,
+                               Point location, String address, String sido, String sigungu, String dong) {
+        Store store = new Store();
+        store.bizesId = bizesId;
+        store.name = name;
+        store.categoryCode = categoryCode;
+        store.categoryName = categoryName;
+        store.location = location;
+        store.address = address;
+        store.sido = sido;
+        store.sigungu = sigungu;
+        store.dong = dong;
+        store.status = "ACTIVE";
+        return store;
+    }
 }

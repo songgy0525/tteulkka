@@ -4,7 +4,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
@@ -24,4 +26,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
             @Param("radiusMeters") int radiusMeters,
             @Param("categoryCode") String categoryCode
     );
+
+    @Query("SELECT s.bizesId FROM Store s WHERE s.bizesId IN :bizesIds")
+    Set<String> findExistingBizesIds(@Param("bizesIds") Collection<String> bizesIds);
 }

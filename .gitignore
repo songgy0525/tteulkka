@@ -4,6 +4,7 @@ backend/.mvn/
 backend/*.log
 backend/application-local.yml
 backend/application-secret.yml
+backend/src/main/resources/application-local.yml
 
 # ── Frontend ──
 frontend/node_modules/

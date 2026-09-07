@@ -16,3 +16,7 @@ spring:
 
 server:
   port: 8080
+
+public-data:
+  api-key: ${PUBLIC_DATA_API_KEY:}
+  store-api-base-url: https://apis.data.go.kr/B553077/api/open/sdsc2
