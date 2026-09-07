@@ -48,39 +48,48 @@ export default function KakaoMap() {
   const [mapReady, setMapReady] = useState(false);
 
   const initMap = useCallback(() => {
-    if (!mapRef.current || mapInstance.current) return;
+    if (mapInstance.current) { setMapReady(true); return; }
+    if (!mapRef.current || !window.kakao?.maps?.Map) return;
 
-    window.kakao.maps.load(() => {
-      const defaultCenter = new window.kakao.maps.LatLng(37.5665, 126.9780);
-      const map = new window.kakao.maps.Map(mapRef.current, {
-        center: defaultCenter,
-        level: 5,
-      });
-      mapInstance.current = map;
-      setMapReady(true);
+    const defaultCenter = new window.kakao.maps.LatLng(37.5665, 126.9780);
+    const map = new window.kakao.maps.Map(mapRef.current, {
+      center: defaultCenter,
+      level: 5,
+    });
+    mapInstance.current = map;
+    setMapReady(true);
 
-      window.kakao.maps.event.addListener(map, 'click', (mouseEvent: any) => {
-        const latlng = mouseEvent.latLng;
-        setCenter({ lat: latlng.getLat(), lng: latlng.getLng() });
-      });
+    window.kakao.maps.event.addListener(map, 'click', (mouseEvent: any) => {
+      const latlng = mouseEvent.latLng;
+      setCenter({ lat: latlng.getLat(), lng: latlng.getLng() });
     });
   }, []);
 
   useEffect(() => {
-    const tryInit = () => {
-      if (window.kakao?.maps) {
-        initMap();
-        return;
-      }
-      const timer = setInterval(() => {
-        if (window.kakao?.maps) {
-          clearInterval(timer);
-          initMap();
-        }
-      }, 100);
-      return () => clearInterval(timer);
+    let cancelled = false;
+
+    const loadMap = () => {
+      window.kakao.maps.load(() => {
+        if (!cancelled) initMap();
+      });
     };
-    return tryInit();
+
+    if (window.kakao?.maps?.load) {
+      loadMap();
+      return () => { cancelled = true; };
+    }
+
+    const timer = setInterval(() => {
+      if (window.kakao?.maps?.load) {
+        clearInterval(timer);
+        loadMap();
+      }
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [initMap]);
 
   // 선택 위치 변경 시 원 업데이트
@@ -156,11 +165,37 @@ export default function KakaoMap() {
     }
   }, [center, radius, category, mapReady, drawMarkers]);
 
-  const getCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(pos => {
-      setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-    });
+  const getCurrentLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      alert('이 브라우저는 위치 기능을 지원하지 않습니다.');
+      return;
+    }
+
+    const tryIpFallback = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          setCenter({ lat: data.latitude, lng: data.longitude });
+        } else {
+          alert('위치를 확인할 수 없습니다.\n지도를 직접 클릭해 위치를 선택해주세요.');
+        }
+      } catch {
+        alert('위치를 확인할 수 없습니다.\n지도를 직접 클릭해 위치를 선택해주세요.');
+      }
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      pos => setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      async (err) => {
+        if (err.code === 1) {
+          alert('위치 권한이 차단되어 있습니다.\n브라우저 주소창의 자물쇠 아이콘에서 위치 권한을 허용해주세요.');
+        } else {
+          await tryIpFallback();
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   }, []);
 
   return (

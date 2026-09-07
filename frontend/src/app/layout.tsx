@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full">
         {children}
         <Script
-          src="//dapi.kakao.com/v2/maps/sdk.js?appkey=08bfa7f8f6eb4809596d2b89a61d8843&autoload=false"
+          src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_APP_KEY}&autoload=false`}
           strategy="afterInteractive"
         />
       </body>

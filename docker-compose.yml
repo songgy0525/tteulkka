@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    platform: linux/amd64
+    container_name: tteulkka-db
+    environment:
+      POSTGRES_USER: tteulkka
+      POSTGRES_PASSWORD: tteulkka
+      POSTGRES_DB: tteulkka
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - tteulkka-db-data:/var/lib/postgresql/data
+
+volumes:
+  tteulkka-db-data:
