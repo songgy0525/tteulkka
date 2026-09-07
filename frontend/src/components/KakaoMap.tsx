@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Script from 'next/script';
 
 declare global {
   interface Window {
@@ -48,27 +47,50 @@ export default function KakaoMap() {
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
-  const handleSdkLoad = useCallback(() => {
-    console.log('[뜰까] SDK onLoad 호출됨, kakao:', !!window.kakao);
-    if (!mapRef.current || mapInstance.current) return;
+  const initMap = useCallback(() => {
+    if (mapInstance.current) { setMapReady(true); return; }
+    if (!mapRef.current || !window.kakao?.maps?.Map) return;
 
-    window.kakao.maps.load(() => {
-      console.log('[뜰까] kakao.maps.load 콜백 실행됨');
-      if (!mapRef.current) return;
-      const defaultCenter = new window.kakao.maps.LatLng(37.5665, 126.9780);
-      const map = new window.kakao.maps.Map(mapRef.current, {
-        center: defaultCenter,
-        level: 5,
-      });
-      mapInstance.current = map;
-      setMapReady(true);
+    const defaultCenter = new window.kakao.maps.LatLng(37.5665, 126.9780);
+    const map = new window.kakao.maps.Map(mapRef.current, {
+      center: defaultCenter,
+      level: 5,
+    });
+    mapInstance.current = map;
+    setMapReady(true);
 
-      window.kakao.maps.event.addListener(map, 'click', (mouseEvent: any) => {
-        const latlng = mouseEvent.latLng;
-        setCenter({ lat: latlng.getLat(), lng: latlng.getLng() });
-      });
+    window.kakao.maps.event.addListener(map, 'click', (mouseEvent: any) => {
+      const latlng = mouseEvent.latLng;
+      setCenter({ lat: latlng.getLat(), lng: latlng.getLng() });
     });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMap = () => {
+      window.kakao.maps.load(() => {
+        if (!cancelled) initMap();
+      });
+    };
+
+    if (window.kakao?.maps?.load) {
+      loadMap();
+      return () => { cancelled = true; };
+    }
+
+    const timer = setInterval(() => {
+      if (window.kakao?.maps?.load) {
+        clearInterval(timer);
+        loadMap();
+      }
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [initMap]);
 
   // 선택 위치 변경 시 원 업데이트
   useEffect(() => {
@@ -143,20 +165,40 @@ export default function KakaoMap() {
     }
   }, [center, radius, category, mapReady, drawMarkers]);
 
-  const getCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(pos => {
-      setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-    });
+  const getCurrentLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      alert('이 브라우저는 위치 기능을 지원하지 않습니다.');
+      return;
+    }
+
+    const tryIpFallback = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          setCenter({ lat: data.latitude, lng: data.longitude });
+        } else {
+          alert('위치를 확인할 수 없습니다.\n지도를 직접 클릭해 위치를 선택해주세요.');
+        }
+      } catch {
+        alert('위치를 확인할 수 없습니다.\n지도를 직접 클릭해 위치를 선택해주세요.');
+      }
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      pos => setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      async (err) => {
+        if (err.code === 1) {
+          alert('위치 권한이 차단되어 있습니다.\n브라우저 주소창의 자물쇠 아이콘에서 위치 권한을 허용해주세요.');
+        } else {
+          await tryIpFallback();
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   }, []);
 
   return (
-    <>
-    <Script
-      src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_APP_KEY}&autoload=false`}
-      strategy="afterInteractive"
-      onLoad={handleSdkLoad}
-    />
     <div className="flex h-full w-full">
       {/* 사이드바 */}
       <div className="w-72 flex flex-col bg-white shadow-lg z-10 overflow-y-auto flex-shrink-0">
@@ -290,6 +332,5 @@ export default function KakaoMap() {
         )}
       </div>
     </div>
-    </>
   );
 }
