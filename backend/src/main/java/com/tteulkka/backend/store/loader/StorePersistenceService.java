@@ -1,26 +1,32 @@
 package com.tteulkka.backend.store.loader;
 
 import com.tteulkka.backend.store.Store;
-import com.tteulkka.backend.store.StoreRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class StorePersistenceService {
 
-    private final StoreRepository storeRepository;
+    private final JdbcTemplate jdbcTemplate;
+
+    private static final String UPSERT_SQL = """
+            INSERT INTO store
+                (bizes_id, name, category_code, category_name, location, address, sido, sigungu, dong, status, created_at, updated_at)
+            VALUES
+                (?, ?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326), ?, ?, ?, ?, 'ACTIVE', now(), now())
+            ON CONFLICT (bizes_id) DO NOTHING
+            """;
 
     @Transactional
     public int saveNewStores(List<Store> stores) {
-        // 페이지 내 bizesId 중복 제거
         List<Store> deduplicated = stores.stream()
                 .collect(Collectors.toMap(
                         Store::getBizesId,
@@ -31,19 +37,23 @@ public class StorePersistenceService {
                 .values().stream()
                 .toList();
 
-        Collection<String> bizesIds = deduplicated.stream()
-                .map(Store::getBizesId)
-                .toList();
+        int[][] results = jdbcTemplate.batchUpdate(UPSERT_SQL, deduplicated, 500,
+                (ps, store) -> {
+                    ps.setString(1, store.getBizesId());
+                    ps.setString(2, store.getName());
+                    ps.setString(3, store.getCategoryCode());
+                    ps.setString(4, store.getCategoryName());
+                    ps.setDouble(5, store.getLocation().getX()); // longitude
+                    ps.setDouble(6, store.getLocation().getY()); // latitude
+                    ps.setString(7, store.getAddress());
+                    ps.setString(8, store.getSido());
+                    ps.setString(9, store.getSigungu());
+                    ps.setString(10, store.getDong());
+                });
 
-        Set<String> existing = storeRepository.findExistingBizesIds(bizesIds);
-
-        List<Store> newStores = deduplicated.stream()
-                .filter(s -> !existing.contains(s.getBizesId()))
-                .toList();
-
-        if (!newStores.isEmpty()) {
-            storeRepository.saveAll(newStores);
-        }
-        return newStores.size();
+        return Arrays.stream(results)
+                .flatMapToInt(Arrays::stream)
+                .filter(r -> r > 0)
+                .sum();
     }
 }
