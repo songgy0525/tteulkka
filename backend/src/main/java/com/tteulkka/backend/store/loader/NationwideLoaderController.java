@@ -27,10 +27,10 @@ public class NationwideLoaderController {
         if (!adminSecretKey.equals(key)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (nationwideLoaderService.isRunning()) {
+        boolean started = nationwideLoaderService.tryStart();
+        if (!started) {
             return ResponseEntity.ok(Map.of("message", "이미 적재 중입니다.", "running", true));
         }
-        nationwideLoaderService.startLoadAll();
         return ResponseEntity.accepted().body(Map.of("message", "전국 데이터 적재를 시작했습니다.", "running", true));
     }
 
@@ -56,12 +56,14 @@ public class NationwideLoaderController {
         }
         long total   = admDongRepository.count();
         long done    = admDongRepository.countByStatus(LoadStatus.DONE);
+        long loading = admDongRepository.countByStatus(LoadStatus.LOADING);
         long failed  = admDongRepository.countByStatus(LoadStatus.FAILED);
         long pending = admDongRepository.countByStatus(LoadStatus.PENDING);
 
         return ResponseEntity.ok(Map.of(
                 "total",   total,
                 "done",    done,
+                "loading", loading,
                 "pending", pending,
                 "failed",  failed,
                 "running", nationwideLoaderService.isRunning()
