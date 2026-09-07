@@ -1,7 +1,6 @@
 package com.tteulkka.backend.store.loader;
 
 import com.tteulkka.backend.store.Store;
-import com.tteulkka.backend.store.StoreRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Coordinate;
@@ -10,19 +9,16 @@ import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class StoreDataLoaderService {
 
-    private final StoreRepository storeRepository;
+    private final StorePersistenceService persistenceService;
     private final RestClient restClient;
 
     @Value("${public-data.api-key}")
@@ -32,35 +28,46 @@ public class StoreDataLoaderService {
     private String baseUrl;
 
     private static final int PAGE_SIZE = 1000;
+    private static final String SUCCESS_CODE = "00";
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory(new PrecisionModel(), 4326);
 
-    @Transactional
+    // HTTP 조회는 트랜잭션 밖에서, 페이지 단위 저장은 StorePersistenceService의 짧은 트랜잭션으로 처리
     public int loadByAdmDong(String admDongCode) {
         int pageNo = 1;
-        int totalLoaded = 0;
+        int totalFetched = 0;
+        int totalSaved = 0;
         int totalCount = Integer.MAX_VALUE;
 
-        while (totalLoaded < totalCount) {
+        while (totalFetched < totalCount) {
             StoreApiResponse response = fetchPage(admDongCode, pageNo);
+
+            if (response.header() != null && !SUCCESS_CODE.equals(response.header().resultCode())) {
+                throw new IllegalStateException(
+                        "공공데이터 API 오류: " + response.header().resultCode()
+                        + " - " + response.header().resultMsg()
+                );
+            }
 
             if (response.body() == null || response.body().items() == null || response.body().items().isEmpty()) {
                 break;
             }
 
             totalCount = response.body().totalCount();
+            int fetchedThisPage = response.body().items().size();
 
             List<Store> stores = response.body().items().stream()
                     .filter(this::hasValidCoordinates)
                     .map(this::toStore)
                     .toList();
 
-            int saved = saveNewStores(stores);
-            totalLoaded += response.body().items().size();
-            log.info("행정동={} page={} 누적={}/{} 저장={}", admDongCode, pageNo, totalLoaded, totalCount, saved);
+            int saved = persistenceService.saveNewStores(stores);
+            totalFetched += fetchedThisPage;
+            totalSaved += saved;
+            log.info("행정동={} page={} 누적={}/{} 저장={}", admDongCode, pageNo, totalFetched, totalCount, saved);
             pageNo++;
         }
 
-        return totalLoaded;
+        return totalSaved;
     }
 
     private StoreApiResponse fetchPage(String admDongCode, int pageNo) {
@@ -98,20 +105,5 @@ public class StoreDataLoaderService {
                 item.signguNm(),
                 item.adongNm()
         );
-    }
-
-    private int saveNewStores(List<Store> stores) {
-        Collection<String> bizesIds = stores.stream()
-                .map(Store::getBizesId)
-                .toList();
-
-        Set<String> existing = storeRepository.findExistingBizesIds(bizesIds);
-
-        List<Store> newStores = stores.stream()
-                .filter(s -> !existing.contains(s.getBizesId()))
-                .toList();
-
-        storeRepository.saveAll(newStores);
-        return newStores.size();
     }
 }

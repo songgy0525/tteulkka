@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Script from 'next/script';
 
 declare global {
   interface Window {
@@ -47,10 +48,13 @@ export default function KakaoMap() {
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
-  const initMap = useCallback(() => {
+  const handleSdkLoad = useCallback(() => {
+    console.log('[뜰까] SDK onLoad 호출됨, kakao:', !!window.kakao);
     if (!mapRef.current || mapInstance.current) return;
 
     window.kakao.maps.load(() => {
+      console.log('[뜰까] kakao.maps.load 콜백 실행됨');
+      if (!mapRef.current) return;
       const defaultCenter = new window.kakao.maps.LatLng(37.5665, 126.9780);
       const map = new window.kakao.maps.Map(mapRef.current, {
         center: defaultCenter,
@@ -65,23 +69,6 @@ export default function KakaoMap() {
       });
     });
   }, []);
-
-  useEffect(() => {
-    const tryInit = () => {
-      if (window.kakao?.maps) {
-        initMap();
-        return;
-      }
-      const timer = setInterval(() => {
-        if (window.kakao?.maps) {
-          clearInterval(timer);
-          initMap();
-        }
-      }, 100);
-      return () => clearInterval(timer);
-    };
-    return tryInit();
-  }, [initMap]);
 
   // 선택 위치 변경 시 원 업데이트
   useEffect(() => {
@@ -164,6 +151,12 @@ export default function KakaoMap() {
   }, []);
 
   return (
+    <>
+    <Script
+      src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_APP_KEY}&autoload=false`}
+      strategy="afterInteractive"
+      onLoad={handleSdkLoad}
+    />
     <div className="flex h-full w-full">
       {/* 사이드바 */}
       <div className="w-72 flex flex-col bg-white shadow-lg z-10 overflow-y-auto flex-shrink-0">
@@ -297,5 +290,6 @@ export default function KakaoMap() {
         )}
       </div>
     </div>
+    </>
   );
 }
