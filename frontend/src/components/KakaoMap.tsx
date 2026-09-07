@@ -40,6 +40,7 @@ export default function KakaoMap() {
   const currentLocationOverlayRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
 
   const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -254,9 +255,21 @@ export default function KakaoMap() {
   // silent=true이면 결과 없어도 alert 안 띄움 (자동완성용)
   const searchPlace = useCallback(async (query: string, silent = false) => {
     if (!query.trim()) return;
+
+    // 이전 자동완성 요청 취소
+    searchAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
+
     try {
-      const res = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/search?query=${encodeURIComponent(query)}`, {
+        signal: controller.signal,
+      });
       const data = await res.json();
+
+      // 요청이 취소됐으면 (다음 입력이 들어온 경우) 무시
+      if (controller.signal.aborted) return;
+
       const results: any[] = data.documents ?? [];
       if (results.length > 0) {
         setSearchResults(results);
@@ -266,7 +279,8 @@ export default function KakaoMap() {
         setShowResults(false);
         if (!silent) alert('검색 결과가 없습니다.');
       }
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return;
       if (!silent) alert('검색 중 오류가 발생했습니다.');
     }
   }, []);
@@ -508,7 +522,7 @@ export default function KakaoMap() {
 
       {/* 선택된 상점 — 하단 플로팅 카드 */}
       {selectedStore && (
-        <div className="absolute bottom-4 left-80 right-4 z-10 bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="absolute bottom-4 left-3 md:left-80 right-4 z-10 bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-4">
             <div className="flex justify-between items-start mb-3">
               <div className="flex-1 min-w-0 mr-3">
