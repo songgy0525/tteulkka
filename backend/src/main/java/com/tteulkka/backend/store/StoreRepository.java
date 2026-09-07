@@ -15,13 +15,15 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
                 ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
                 :radiusMeters
             )
-            AND (:categoryCode IS NULL OR category_code = :categoryCode)
+            AND (:categoryPrefix IS NULL OR category_code LIKE :categoryPrefix || '%')
             AND status = 'ACTIVE'
+            ORDER BY location::geography <-> ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+            LIMIT 300
             """, nativeQuery = true)
     List<Store> findWithinRadius(
             @Param("lat") double lat,
             @Param("lng") double lng,
             @Param("radiusMeters") int radiusMeters,
-            @Param("categoryCode") String categoryCode
+            @Param("categoryPrefix") String categoryPrefix
     );
 }

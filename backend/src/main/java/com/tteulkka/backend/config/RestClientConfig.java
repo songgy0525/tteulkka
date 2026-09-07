@@ -9,10 +9,12 @@ import org.springframework.web.client.RestClient;
 public class RestClientConfig {
 
     @Bean
-    public RestClient restClient(RestClient.Builder builder) {
+    public RestClient restClient() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5_000);
         factory.setReadTimeout(30_000);
-        return builder.requestFactory(factory).build();
+        return RestClient.builder()
+                .requestFactory(factory)
+                .build();
     }
 }
