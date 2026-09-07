@@ -11,6 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -71,27 +74,24 @@ public class StoreDataLoaderService {
     }
 
     private StoreApiResponse fetchPage(String admDongCode, int pageNo) {
+        String encodedKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
+        String url = String.format(
+                "%s/storeListInDong?serviceKey=%s&pageNo=%d&numOfRows=%d&divId=adongCd&key=%s&type=json",
+                baseUrl, encodedKey, pageNo, PAGE_SIZE, admDongCode
+        );
         return restClient.get()
-                .uri(baseUrl + "/storeListInAdmDong", builder -> builder
-                        .queryParam("serviceKey", apiKey)
-                        .queryParam("pageNo", pageNo)
-                        .queryParam("numOfRows", PAGE_SIZE)
-                        .queryParam("divId", "adongCd")
-                        .queryParam("key", admDongCode)
-                        .queryParam("type", "json")
-                        .build())
+                .uri(URI.create(url))
                 .retrieve()
                 .body(StoreApiResponse.class);
     }
 
     private boolean hasValidCoordinates(StoreApiItem item) {
-        return item.lon() != null && item.lat() != null
-                && !item.lon().isBlank() && !item.lat().isBlank();
+        return item.lon() != null && item.lat() != null;
     }
 
     private Store toStore(StoreApiItem item) {
-        double lng = Double.parseDouble(item.lon());
-        double lat = Double.parseDouble(item.lat());
+        double lng = item.lon();
+        double lat = item.lat();
         Point point = GEOMETRY_FACTORY.createPoint(new Coordinate(lng, lat));
 
         return Store.create(

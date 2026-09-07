@@ -1,5 +1,8 @@
 package com.tteulkka.backend.store.loader;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record StoreApiItem(
         String bizesId,
         String bizesNm,
@@ -9,6 +12,6 @@ public record StoreApiItem(
         String signguNm,
         String adongNm,
         String rdnmAdr,
-        String lon,
-        String lat
+        Double lon,
+        Double lat
 ) {}
