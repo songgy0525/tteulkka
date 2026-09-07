@@ -1,11 +1,10 @@
 package com.tteulkka.backend.store.loader;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin/data")
@@ -14,8 +13,16 @@ public class StoreDataLoaderController {
 
     private final StoreDataLoaderService loaderService;
 
+    @Value("${admin.secret-key}")
+    private String adminSecretKey;
+
     @PostMapping("/load")
-    public ResponseEntity<LoadResult> load(@RequestBody LoadRequest request) {
+    public ResponseEntity<LoadResult> load(
+            @RequestHeader("X-Admin-Key") String key,
+            @RequestBody LoadRequest request) {
+        if (!adminSecretKey.equals(key)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         int count = loaderService.loadByAdmDong(request.admDongCode());
         return ResponseEntity.ok(new LoadResult(request.admDongCode(), count));
     }

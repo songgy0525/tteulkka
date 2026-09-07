@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: tteulkka
       POSTGRES_DB: tteulkka
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - tteulkka-db-data:/var/lib/postgresql/data
 
