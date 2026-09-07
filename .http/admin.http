@@ -1,0 +1,26 @@
+### 전국 데이터 적재 시작 (비동기 — 즉시 202 반환)
+POST http://localhost:8080/api/admin/data/load-all
+X-Admin-Key: local-dev-secret
+
+###
+
+### 진행 상황 조회
+GET http://localhost:8080/api/admin/data/load-progress
+X-Admin-Key: local-dev-secret
+
+###
+
+### 실패한 행정동 재시도 (FAILED → PENDING)
+POST http://localhost:8080/api/admin/data/reset-failed
+X-Admin-Key: local-dev-secret
+
+###
+
+### 특정 행정동 단건 적재
+POST http://localhost:8080/api/admin/data/load
+X-Admin-Key: local-dev-secret
+Content-Type: application/json
+
+{
+  "admDongCode": "11680640"
+}
