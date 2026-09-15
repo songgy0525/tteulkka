@@ -18,8 +18,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Map<String, String>> handleConstraintViolation(ConstraintViolationException e) {
+        log.warn("ConstraintViolationException: {}", e.getMessage());
         return ResponseEntity.badRequest()
-                .body(Map.of("error", "요청 값이 유효하지 않습니다. " + e.getMessage()));
+                .body(Map.of("error", "요청 값이 유효하지 않습니다."));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -45,7 +46,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException e) {
         log.error("IllegalStateException 발생", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", e.getMessage()));
+                .body(Map.of("error", "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."));
     }
 
     @ExceptionHandler(Exception.class)

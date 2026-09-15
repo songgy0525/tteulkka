@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
             }
         );
         if (!res.ok) {
-            return NextResponse.json({ error: 'kakao api error', documents: [] }, { status: res.status });
+            return NextResponse.json({ error: 'kakao api error' }, { status: res.status });
         }
         const data = await res.json();
-        return NextResponse.json(data, { status: 200 });
+        return NextResponse.json({ documents: data.documents ?? [] }, { status: 200 });
     } catch {
         if (signal.aborted) {
             return NextResponse.json({ error: 'upstream timeout' }, { status: 504 });

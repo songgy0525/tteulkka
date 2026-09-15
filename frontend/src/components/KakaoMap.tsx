@@ -294,9 +294,27 @@ export default function KakaoMap() {
     const lng = searchParams.get('lng');
     const r = searchParams.get('radius');
     const cat = searchParams.get('category');
-    if (lat && lng) setCenter({ lat: parseFloat(lat), lng: parseFloat(lng) });
-    if (r) setRadius(parseInt(r));
-    if (cat !== null) setCategory(cat);
+
+    if (lat && lng) {
+      const parsedLat = parseFloat(lat);
+      const parsedLng = parseFloat(lng);
+      if (
+        Number.isFinite(parsedLat) && parsedLat >= -90 && parsedLat <= 90 &&
+        Number.isFinite(parsedLng) && parsedLng >= -180 && parsedLng <= 180
+      ) {
+        setCenter({ lat: parsedLat, lng: parsedLng });
+      }
+    }
+    if (r) {
+      const parsedRadius = parseInt(r, 10);
+      if (Number.isFinite(parsedRadius) && parsedRadius >= 100 && parsedRadius <= 5000) {
+        setRadius(parsedRadius);
+      }
+    }
+    if (cat !== null) {
+      const validCategory = CATEGORIES.find(c => c.value === cat);
+      if (validCategory) setCategory(cat);
+    }
   }, [searchParams]);
 
   useEffect(() => {

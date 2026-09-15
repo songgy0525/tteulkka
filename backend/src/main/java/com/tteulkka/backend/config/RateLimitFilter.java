@@ -16,9 +16,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * IP당 분 단위 고정 윈도우 rate limit.
  * 단일 인스턴스 전제 — 스케일 아웃 시 Redis 기반으로 교체 필요.
+ *
+ * X-Forwarded-For는 신뢰된 프록시 CIDR 목록에서 온 요청에 한해서만 파싱한다.
+ * 신뢰되지 않은 요청은 TCP RemoteAddr를 IP로 사용해 헤더 스푸핑을 차단한다.
  */
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
+
+    /**
+     * 신뢰된 리버스 프록시 IP 목록.
+     * 실제 배포 환경의 로드밸런서·프록시 IP를 여기에 추가한다.
+     */
+    private static final java.util.Set<String> TRUSTED_PROXIES = java.util.Set.of(
+            "127.0.0.1", "::1"
+    );
 
     private static final int MAX_REQUESTS_PER_MINUTE = 120;
     private static final long WINDOW_MILLIS = 60_000L;
@@ -55,11 +66,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+        String remoteAddr = request.getRemoteAddr();
+        if (TRUSTED_PROXIES.contains(remoteAddr)) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                return forwarded.split(",")[0].trim();
+            }
         }
-        return request.getRemoteAddr();
+        return remoteAddr;
     }
 
     // 만료된 윈도우 정리 (메모리 누수 방지)
