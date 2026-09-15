@@ -8,9 +8,27 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "뜰까 — 내 주변 상권 분석",
-  description: "반경 내 상권을 한눈에 확인하세요",
+  description: "반경 내 상권을 한눈에 확인하세요. 음식점·카페·뷰티·의료 등 업종 분포와 상권 점수를 무료로 분석해드립니다.",
+  keywords: ["상권 분석", "내 주변 상권", "상권 지도", "창업 입지 분석", "뜰까"],
+  openGraph: {
+    title: "뜰까 — 내 주변 상권 분석",
+    description: "반경 내 상권을 한눈에 확인하세요. 업종 분포와 상권 점수를 무료로 분석해드립니다.",
+    type: "website",
+    locale: "ko_KR",
+    siteName: "뜰까",
+  },
+  twitter: {
+    card: "summary",
+    title: "뜰까 — 내 주변 상권 분석",
+    description: "반경 내 상권을 한눈에 확인하세요.",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
